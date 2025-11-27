@@ -80,7 +80,7 @@ minio:
     - "9001:9001"
   environment:
     MINIO_ROOT_USER: minioadmin
-    MINIO_ROOT_PASSWORD: minioadmin123
+    MINIO_ROOT_PASSWORD: ***************
   command: server /data --console-address ":9001"
 ```
 
