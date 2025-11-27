@@ -1,0 +1,43 @@
+services:
+  # MinIO for S3-compatible object storage
+  minio:
+    image: minio/minio:latest
+    container_name: mlflow-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  # MLflow Tracking Server (standalone with file-based backend)
+  mlflow:
+    build: 
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_S3_ENDPOINT_URL=http://mlflow-minio:9000
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin123
+      - MLFLOW_S3_IGNORE_TLS=true
+      - AWS_DEFAULT_REGION=us-east-1
+    command: >
+      mlflow server
+      --backend-store-uri file:///mlflow/mlruns
+      --default-artifact-root s3://mlflow-artifacts/
+      --host 0.0.0.0
+      --port 5000
+    volumes:
+      - mlflow_data:/mlflow
+    depends_on:
+      - minio
+
+volumes:
+  minio_data:
+  mlflow_data:

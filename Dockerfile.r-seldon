@@ -1,0 +1,37 @@
+# Pure R Microservice for Seldon Core
+FROM r-base:4.3.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install R packages
+RUN R -e "install.packages(c('randomForest', 'jsonlite', 'plumber', 'httr', 'readr'), repos='http://cran.r-project.org')"
+
+# Create app directory
+WORKDIR /app
+
+# Create model directory
+RUN mkdir -p /app/model
+
+# Copy R model server
+COPY r_model_server.R /app/
+
+# Set environment variables
+ENV MODEL_NAME=loan-approval-r-model
+ENV SERVICE_TYPE=MODEL
+ENV PORT=9000
+
+# Expose port
+EXPOSE 9000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:9000/health || exit 1
+
+# Start the R Plumber API server
+CMD ["Rscript", "/app/r_model_server.R"]

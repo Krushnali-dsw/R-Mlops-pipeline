@@ -1,0 +1,50 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: loan-approval-model
+  namespace: default
+spec:
+  name: loan-approval-classifier
+  predictors:
+  - name: default
+    replicas: 1
+    componentSpecs:
+    - spec:
+        containers:
+        - name: classifier
+          image: loan-model:v1
+          imagePullPolicy: Never
+          ports:
+          - containerPort: 9000
+          env:
+          - name: MODEL_NAME
+            value: "loan-approval-model"
+          - name: SERVICE_TYPE
+            value: "MODEL"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+        initContainers:
+        - name: model-initializer
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+          - |
+            echo '{"age":35,"income":75000,"education":16,"experience":10,"credit_score":750}' > /app/model/test_data.json
+            echo 'Model data initialized'
+          volumeMounts:
+          - name: model-storage
+            mountPath: /app/model
+        volumes:
+        - name: model-storage
+          configMap:
+            name: model-data
+    graph:
+      name: classifier
+      endpoint:
+        type: REST
+      children: []

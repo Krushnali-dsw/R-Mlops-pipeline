@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loan-model-r-deployment
+  labels:
+    app: loan-model-r
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loan-model-r
+  template:
+    metadata:
+      labels:
+        app: loan-model-r
+    spec:
+      containers:
+      - name: r-model-server
+        image: loan-model-r:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 9000
+          name: http
+        env:
+        - name: R_PORT
+          value: "9000"
+        - name: R_HOST
+          value: "0.0.0.0"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/model
+          readOnly: true
+      volumes:
+      - name: model-storage
+        hostPath:
+          path: /tmp/models
+          type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loan-model-r-service
+  labels:
+    app: loan-model-r
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 9000
+    protocol: TCP
+    name: http
+  selector:
+    app: loan-model-r
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: r-model-config
+data:
+  model_name: "loan-approval-r-model"
+  model_version: "v1.0.0"
+  log_level: "INFO"
+  features: "age,income,education,experience,credit_score"

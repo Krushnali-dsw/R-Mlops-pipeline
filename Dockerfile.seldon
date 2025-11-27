@@ -1,0 +1,50 @@
+
+# Dockerfile for Seldon Core R Model Server
+FROM python:3.9-slim
+
+# Install R and required packages
+RUN apt-get update && apt-get install -y \
+    r-base \
+    r-base-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install R packages
+RUN R -e "install.packages(c('randomForest', 'jsonlite'), repos='http://cran.r-project.org')"
+
+# Install Python dependencies
+RUN pip install \
+    seldon-core==1.15.0 \
+    numpy==1.24.3 \
+    pandas==2.0.3 \
+    scikit-learn==1.3.0 \
+    joblib==1.3.2
+
+# Create app directory
+WORKDIR /app
+
+# Create model directory
+RUN mkdir -p /app/model
+
+# Copy model server
+COPY model_server.py /app/
+
+# Copy the trained model (will be mounted in deployment)
+# COPY random_forest_minio.rds /app/model/
+
+# Set environment variables
+ENV MODEL_NAME=loan-approval-model
+ENV SERVICE_TYPE=MODEL
+
+# Expose port
+EXPOSE 9000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:9000/health || exit 1
+
+# Copy Seldon model
+COPY seldon_model.py /app/
+
+# Start the Seldon Core model server  
+CMD ["python", "-m", "seldon_core.microservice", "seldon_model:Model", "--service-type", "MODEL"]

@@ -1,0 +1,43 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: seldondeployments.machinelearning.seldon.io
+spec:
+  group: machinelearning.seldon.io
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              name:
+                type: string
+              predictors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    replicas:
+                      type: integer
+                    componentSpecs:
+                      type: array
+                      items:
+                        type: object
+                    graph:
+                      type: object
+          status:
+            type: object
+  scope: Namespaced
+  names:
+    plural: seldondeployments
+    singular: seldondeployment
+    kind: SeldonDeployment
+    shortNames:
+    - sdep

@@ -1,0 +1,64 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: loan-approval-r-model
+  namespace: default
+spec:
+  name: loan-approval-r-model
+  predictors:
+  - graph:
+      children: []
+      implementation: UNKNOWN_IMPLEMENTATION
+      modelUri: ""
+      name: classifier
+      type: MODEL
+    name: default
+    componentSpecs:
+    - spec:
+        containers:
+        - name: classifier
+          image: loan-model-r:latest
+          imagePullPolicy: Never
+          ports:
+          - containerPort: 9000
+            name: http
+            protocol: TCP
+          env:
+          - name: SERVICE_TYPE
+            value: "MODEL"
+          - name: PERSISTENCE
+            value: "0"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          volumeMounts:
+          - name: model-storage
+            mountPath: /app/model
+            readOnly: true
+        volumes:
+        - name: model-storage
+          hostPath:
+            path: /tmp/models
+            type: DirectoryOrCreate
+    replicas: 2
+    traffic: 100

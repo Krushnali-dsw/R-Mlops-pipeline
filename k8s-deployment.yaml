@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loan-model-deployment
+  labels:
+    app: loan-model
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loan-model
+  template:
+    metadata:
+      labels:
+        app: loan-model
+    spec:
+      containers:
+      - name: loan-model
+        image: loan-flask-model:v1
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 9000
+        env:
+        - name: FLASK_APP
+          value: "flask_model_server.py"
+        - name: FLASK_ENV
+          value: "production"
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/model
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: model-storage
+        configMap:
+          name: model-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loan-model-service
+  labels:
+    app: loan-model
+spec:
+  type: NodePort
+  ports:
+  - port: 9000
+    targetPort: 9000
+    nodePort: 30090
+    protocol: TCP
+  selector:
+    app: loan-model
+---
+apiVersion: v1
+kind: Service  
+metadata:
+  name: loan-model-loadbalancer
+  labels:
+    app: loan-model
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 9000
+    protocol: TCP
+  selector:
+    app: loan-model

@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # MLflow server (existing)
+  mlflow-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql://mlflow:mlflow123@mlflow-postgres:5432/mlflow
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=s3://mlflow-artifacts
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin123
+      - MLFLOW_S3_ENDPOINT_URL=http://mlflow-minio:9000
+    depends_on:
+      mlflow-postgres:
+        condition: service_healthy
+      mlflow-minio:
+        condition: service_started
+    networks:
+      - mlflow-network
+    restart: unless-stopped
+
+  # MinIO server (existing)
+  mlflow-minio:
+    image: minio/minio:latest
+    container_name: mlflow-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - mlflow-network
+    restart: unless-stopped
+
+  # PostgreSQL (existing)
+  mlflow-postgres:
+    image: postgres:13
+    container_name: mlflow-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=mlflow
+      - POSTGRES_USER=mlflow
+      - POSTGRES_PASSWORD=mlflow123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mlflow-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO bucket creator (existing)
+  minio_create_bucket:
+    image: minio/mc:latest
+    depends_on:
+      - mlflow-minio
+    entrypoint: >
+      /bin/sh -c "
+      until /usr/bin/mc alias set minio http://mlflow-minio:9000 minioadmin minioadmin123; do echo 'Waiting for MinIO...' && sleep 1; done;
+      /usr/bin/mc mb minio/mlflow-artifacts --ignore-existing;
+      /usr/bin/mc policy set public minio/mlflow-artifacts;
+      echo 'MinIO bucket created successfully';
+      "
+    networks:
+      - mlflow-network
+
+  # Seldon Core Model Server
+  loan-model-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.seldon
+    container_name: seldon-loan-model
+    ports:
+      - "9090:9000"  # Seldon Core default port
+    environment:
+      - MODEL_NAME=loan-approval-model
+      - SERVICE_TYPE=MODEL
+      - SELDON_LOG_LEVEL=INFO
+    volumes:
+      - ./:/app/model:ro  # Mount current directory as read-only
+    networks:
+      - mlflow-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/v1.0/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Simple monitoring dashboard (using grafana instead)
+  # seldon-analytics:
+  #   image: grafana/grafana:latest
+  #   container_name: seldon-analytics  
+  #   ports:
+  #     - "8080:3000"
+  #   networks:
+  #     - mlflow-network
+  #   restart: unless-stopped
+
+volumes:
+  minio_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  mlflow-network:
+    driver: bridge

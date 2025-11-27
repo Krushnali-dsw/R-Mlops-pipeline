@@ -1,0 +1,14 @@
+# Minimal R Docker Setup
+FROM rocker/r-base:latest
+
+# Install packages
+RUN R -e "install.packages(c('plumber','randomForest','jsonlite'), repos='https://cran.rstudio.com/')"
+
+# Setup
+WORKDIR /app
+COPY r_model_server_fast.R /app/
+COPY flask_random_forest.rds /app/
+
+EXPOSE 8000
+
+CMD ["Rscript", "-e", "plumber::plumb('/app/r_model_server_fast.R')$run(host='0.0.0.0', port=8000)"]

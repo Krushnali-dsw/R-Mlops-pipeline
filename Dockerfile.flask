@@ -1,0 +1,40 @@
+# Dockerfile for Flask Model Server
+FROM python:3.9-slim
+
+# Install R and required packages
+RUN apt-get update && apt-get install -y \
+    r-base \
+    r-base-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install R packages
+RUN R -e "install.packages(c('randomForest', 'jsonlite'), repos='http://cran.r-project.org')"
+
+# Install Python dependencies
+RUN pip install \
+    flask==2.3.3 \
+    requests==2.32.5
+
+# Create app directory
+WORKDIR /app
+
+# Create model directory
+RUN mkdir -p /app/model
+
+# Copy Flask server
+COPY flask_model_server.py /app/
+
+# Set environment variables
+ENV FLASK_APP=flask_model_server.py
+ENV FLASK_ENV=production
+
+# Expose port
+EXPOSE 9000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:9000/health || exit 1
+
+# Start the Flask server
+CMD ["python", "flask_model_server.py"]

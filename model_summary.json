@@ -1,0 +1,12 @@
+{
+  "algorithm": "Random Forest",
+  "accuracy": 1,
+  "auc": 1,
+  "best_params": [
+    {
+      "mtry": 2
+    }
+  ],
+  "features": ["age", "income", "education", "experience", "credit_score"],
+  "created_at": "2025-11-27 11:48:52.542042"
+}

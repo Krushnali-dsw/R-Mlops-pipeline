@@ -1,0 +1,37 @@
+# Fast R Microservice - Optimized Build
+FROM rocker/r-ver:4.2.0
+
+# Install only essential system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    libcurl4-openssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install R packages in one layer with pre-compiled binaries
+RUN install2.r --error --skipinstalled \
+    randomForest \
+    jsonlite \
+    plumber \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create directories
+WORKDIR /app
+RUN mkdir -p /app/model
+
+# Copy files
+COPY r_model_server.R /app/
+COPY flask_random_forest.rds /app/model/
+
+# Environment variables
+ENV PORT=9000
+ENV MODEL_PATH=/app/model/flask_random_forest.rds
+
+# Expose port
+EXPOSE 9000
+
+# Simple health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+    CMD curl -f http://localhost:9000/health || exit 1
+
+# Start server
+CMD ["Rscript", "/app/r_model_server.R"]
